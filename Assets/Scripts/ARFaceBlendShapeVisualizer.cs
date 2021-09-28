@@ -5,20 +5,23 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARKit;
 using Unity.Collections;
 using UnityEngine.XR.ARSubsystems;
+using UnityEngine.UI; 
 
 public class ARFaceBlendShapeVisualizer : MonoBehaviour
 {
-    //ARKit Á¦°øÇÏ´Â ÆÄ¶ó¹ÌÅÍ´Â 0~1ÀÇ°ªÀÌ µé¾î¿Â´Ù but, blendshape °ªÀº 0~100ÀÌ¹Ç·Î *100 ÇØÁØ´Ù.
+    //ARKit ì œê³µí•˜ëŠ” íŒŒë¼ë¯¸í„°ëŠ” 0~1ì˜ê°’ì´ ë“¤ì–´ì˜¨ë‹¤ but, blendshape ê°’ì€ 0~100ì´ë¯€ë¡œ *100 í•´ì¤€ë‹¤.
     private const float CoefficientValueScale = 100f;
 
     public SkinnedMeshRenderer faceMeshRenderer;
 
-    //¾ó±¼ÀÌ È­¸é»ó¿¡ ÀÎ½ÄÀÌ µÇ¸é ·»´õ·¯ ÀÎ½Ä, ¾ó±¼ÀÌ ¾øÀ¸¸é ·»´õ·¯ ºñÈ°¼ºÈ­
+    //ì–¼êµ´ì´ í™”ë©´ìƒì— ì¸ì‹ì´ ë˜ë©´ ë Œë”ëŸ¬ ì¸ì‹, ì–¼êµ´ì´ ì—†ìœ¼ë©´ ë Œë”ëŸ¬ ë¹„í™œì„±í™”
     private Renderer[] _characterRenderers;
 
     private ARFace _arFace;
-    private ARFaceManager _arFacemanager;        //ARKitFaceSubsystemÀ» ÀÚµ¿À¸·Î »ı¼ºÇØÁÖ°í Á¦°øÇØÁØ´Ù.
-    private ARKitFaceSubsystem _arKitFaceSubsystem;
+    private ARFaceManager _arFacemanager;        //ARKitFaceSubsystemì„ ìë™ìœ¼ë¡œ ìƒì„±í•´ì£¼ê³  ì œê³µí•´ì¤€ë‹¤.
+    [HideInInspector]
+    public ARKitFaceSubsystem _arKitFaceSubsystem;
+    //public string Facedata;
 
     private const int BlendShapeIndexLeftEyeBlink = 6;
     private const int BlendShapeIndexRightEyeBlink = 7;
@@ -27,9 +30,9 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
     private const int BlendShapeIndexLookLeft = 16;
     private const int BlendShapeIndexLookRight = 17;
 
-    private const int BlendShapeIndexMouthA = 1;
+    private const int BlendShapeIndexMouthA = 0; // 'I(ì´)' ì—ì„œ 'A(ì•„)'ë¡œ ìˆ˜ì • 
 
-    // Ç¥Á¤ÀÌ ±¸ÇöÁßÀÏ¶§ ÀÚ½ÅÀÇ ¾ó±¼À» Tracking ÇÏÁö ¾Ê°Ô ÇÏ±â À§ÇÑ º¯¼ö
+    // í‘œì •ì´ êµ¬í˜„ì¤‘ì¼ë•Œ ìì‹ ì˜ ì–¼êµ´ì„ Tracking í•˜ì§€ ì•Šê²Œ í•˜ê¸° ìœ„í•œ ë³€ìˆ˜
     private bool _emoteEnabled = false;
 
     private const int BlendShapeIndexJoy = 8;
@@ -38,7 +41,11 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
     private const int BlendShapeIndexFun = 12;
     private const int BlendShapeIndexAnnyui = 13;
 
-    //ARKitBlendShapeLocation ÀÌ ARKit¿¡¼­ ÃøÁ¤ÇÑ °¢°¢ÀÇ Å°µé -> Å°µé¿¡ ´ëÀÀµÇ´Â value´Â float°ª -> Table¿¡ ÀúÀå
+    private Text EyeBlinkText;
+    private Text EyeMoveText;
+    private Text MouthText;
+
+    //ARKitBlendShapeLocation ì´ ARKitì—ì„œ ì¸¡ì •í•œ ê°ê°ì˜ í‚¤ë“¤ -> í‚¤ë“¤ì— ëŒ€ì‘ë˜ëŠ” valueëŠ” floatê°’ -> Tableì— ì €ì¥
     private readonly Dictionary<ARKitBlendShapeLocation, float> _arKitBlendShapeValueTable
         = new Dictionary<ARKitBlendShapeLocation, float>();
     // Start is called before the first frame update
@@ -47,23 +54,26 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         _characterRenderers = GetComponentsInChildren<Renderer>();
         _arFace = GetComponent<ARFace>();
         _arFacemanager = FindObjectOfType<ARFaceManager>();
+        EyeBlinkText = GameObject.Find("TextEyeBlink").GetComponent<Text>();
+        EyeMoveText = GameObject.Find("TextEyeMove").GetComponent<Text>();
+        MouthText = GameObject.Find("TextMouth").GetComponent<Text>();
 
         _arKitFaceSubsystem = _arFacemanager.subsystem as ARKitFaceSubsystem;
 
 
         SetupARKitBlendShapeTable();
 
-        // arFace°¡ ¾÷µ¥ÀÌÆ® µÉ¶§¸¶´Ù ½ÇÇà
+        // arFaceê°€ ì—…ë°ì´íŠ¸ ë ë•Œë§ˆë‹¤ ì‹¤í–‰
         _arFace.updated += OnFaceUpdated;
 
-        // ARSessionÀÇ ¶óÀÌÇÁ »çÀÌÅ¬¿¡ º¯°æÀÌ ÀÖÀ»¶§¸¶´Ù ¸Ş¼­µå ½ÇÇà
+        // ARSessionì˜ ë¼ì´í”„ ì‚¬ì´í´ì— ë³€ê²½ì´ ìˆì„ë•Œë§ˆë‹¤ ë©”ì„œë“œ ì‹¤í–‰
         ARSession.stateChanged += OnARSessionStateChanged;
     }
     
 
     private void OnARSessionStateChanged(ARSessionStateChangedEventArgs args)
     {
-        // ARSessionÀÌ È°¼ºÈ­ µÇ°í AR Face°¡ µ¿ÀÛ °¡´ÉÇÒ ¶§¸¸ µ¿ÀÛ½ÃÅ´
+        // ARSessionì´ í™œì„±í™” ë˜ê³  AR Faceê°€ ë™ì‘ ê°€ëŠ¥í•  ë•Œë§Œ ë™ì‘ì‹œí‚´
         if (args.state > ARSessionState.Ready && _arFace.trackingState == TrackingState.Tracking)
         {
             foreach(var characterRenderer in _characterRenderers)
@@ -79,10 +89,10 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         }
     }
 
-    // Å×ÀÌºí Setup
+    // í…Œì´ë¸” Setup
     private void SetupARKitBlendShapeTable()
     {
-        // ¿ì¸®°¡ ÃøÁ¤ÇÏ°í ½ÍÀº °ª, ÃÊ±â°ª
+        // ìš°ë¦¬ê°€ ì¸¡ì •í•˜ê³  ì‹¶ì€ ê°’, ì´ˆê¸°ê°’
         _arKitBlendShapeValueTable.Add(ARKitBlendShapeLocation.EyeBlinkLeft, 0f);
         _arKitBlendShapeValueTable.Add(ARKitBlendShapeLocation.EyeBlinkRight, 0f);
 
@@ -105,21 +115,21 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         UpdateARKitBlendShapeValues();
     }
 
-    // ¾ó±¼ÀÇ Á¤º¸°¡ °»½ÅµÉ¶§¸¶´Ù Å×ÀÌºíÀÇ Å° ¹ë·ù¸¦ °»½Å
+    // ì–¼êµ´ì˜ ì •ë³´ê°€ ê°±ì‹ ë ë•Œë§ˆë‹¤ í…Œì´ë¸”ì˜ í‚¤ ë°¸ë¥˜ë¥¼ ê°±ì‹ 
     private void UpdateARKitBlendShapeValues()
     {
-        // ¾ÆÀÌÆùÀÌ ÃøÁ¤ÇÑ °ªµéÀ» °¡Á®¿Í¼­ °»½Å
+        // ì•„ì´í°ì´ ì¸¡ì •í•œ ê°’ë“¤ì„ ê°€ì ¸ì™€ì„œ ê°±ì‹ 
         var blendShapeCoefficients = _arKitFaceSubsystem.GetBlendShapeCoefficients(_arFace.trackableId, Allocator.Temp);
-
+        //Facedata = blendShapeCoefficients.ToString();
         foreach (var blendShapeCoefficient in blendShapeCoefficients)
         {
-            // ¾ÆÀÌÆùÀ¸·Î Location ¹Ş¾Æ¿È
+            // ì•„ì´í°ìœ¼ë¡œ Location ë°›ì•„ì˜´
             var blendShapeLocation = blendShapeCoefficient.blendShapeLocation;
 
-            // ¸¸¾à Location°ªµéÀÌ ÀÖ´Â Å×ÀÌºí¿¡ °»½ÅµÈ LocationÀÌ ÀÖÀ¸¸é
+            // ë§Œì•½ Locationê°’ë“¤ì´ ìˆëŠ” í…Œì´ë¸”ì— ê°±ì‹ ëœ Locationì´ ìˆìœ¼ë©´
             if (_arKitBlendShapeValueTable.ContainsKey(blendShapeLocation))
             {
-                // Å×ÀÌºíÀÇ °ªÀ» °»½ÅÇÑ´Ù.
+                // í…Œì´ë¸”ì˜ ê°’ì„ ê°±ì‹ í•œë‹¤.
                 _arKitBlendShapeValueTable[blendShapeLocation] = blendShapeCoefficient.coefficient * CoefficientValueScale;
             }
         }
@@ -141,7 +151,10 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         ResetBlendShape();
 
         ApplyEyeBlink();
+        
         ApplyMouth();
+
+        CheckValue();
     }
 
     private void ApplyEyeBlink()
@@ -151,6 +164,24 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         
         var rightBlinkValue = _arKitBlendShapeValueTable[ARKitBlendShapeLocation.EyeBlinkRight];
         faceMeshRenderer.SetBlendShapeWeight(BlendShapeIndexRightEyeBlink, rightBlinkValue);
+    }
+
+    void CheckValue()
+    {
+        var LeftEyeBlinkValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexLeftEyeBlink);
+        var RightEyeBlinkValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexRightEyeBlink);
+        var LookUpValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexLookUp);
+        var LookDownValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexLookDown);
+        var LookLeftValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexLookLeft);
+        var LookRightValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexLookRight);
+        var MouthAValue = faceMeshRenderer.GetBlendShapeWeight(BlendShapeIndexMouthA);
+
+
+        EyeBlinkText.text = "ì™¼ìª½ ëˆˆ ê°’ : " + LeftEyeBlinkValue + "\n" + "ì˜¤ë¥¸ìª½ ëˆˆ ê°’ : " + RightEyeBlinkValue;
+        EyeMoveText.text = "ëˆˆë™ì "+ "\n" + "ìœ„ : "+ LookUpValue + "\n" + "ì•„ë˜ : " + LookDownValue + "\n" +
+                            "ì™¼ìª½ : " + LookLeftValue + "\n" + "ì˜¤ë¥¸ìª½ : " + LookRightValue;
+        MouthText.text = "ì…(ì•„) : " + MouthAValue;
+
     }
 
     private void ApplyEyeMovement()
@@ -184,7 +215,7 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
         faceMeshRenderer.SetBlendShapeWeight(BlendShapeIndexMouthA, mouthOpenValue); 
     }
 
-    // Bledn Shape Reset -> ¸ğµç BlendShapeÀÇ °ªµéÀ» 0À¸·Î ÃÊ±âÈ­
+    // Bledn Shape Reset -> ëª¨ë“  BlendShapeì˜ ê°’ë“¤ì„ 0ìœ¼ë¡œ ì´ˆê¸°í™”
     private void ResetBlendShape()
     {
         for(var i =0; i< faceMeshRenderer.sharedMesh.blendShapeCount; i++)
@@ -196,7 +227,7 @@ public class ARFaceBlendShapeVisualizer : MonoBehaviour
     
     public void SetDisableEmote()
     {
-        // Ç¥Á¤À» Áş°í ÀÖ´Ù°¡ ÇØÁ¦ÇÒ¶§ »ç¿ë
+        // í‘œì •ì„ ì§“ê³  ìˆë‹¤ê°€ í•´ì œí• ë•Œ ì‚¬ìš©
         _emoteEnabled = false;
         ResetBlendShape();
     }
